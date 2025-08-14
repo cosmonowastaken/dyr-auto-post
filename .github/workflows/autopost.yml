@@ -1,0 +1,52 @@
+name: Auto Post to TikTok & Meta
+
+on:
+  schedule:
+    - cron: '30 9 * * *' # Runs daily at 9:30 AM Pakistan time
+  workflow_dispatch:
+
+jobs:
+  autopost:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup Rclone
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rclone ffmpeg
+
+      - name: Configure Rclone
+        run: |
+          mkdir -p ~/.config/rclone
+          echo "${{ secrets.RCLONE_CONF }}" > ~/.config/rclone/rclone.conf
+
+      - name: Sync from Google Drive
+        run: |
+          rclone copy dyrdrive:/ DYR_UPLOADS --ignore-existing --progress
+
+      - name: Process files for Meta
+        run: |
+          mkdir META
+          mkdir TIKTOK
+          for f in DYR_UPLOADS/*; do
+            if [[ $f == *.jpg || $f == *.png ]]; then
+              # Photo: Convert to 4:5 for Meta
+              ffmpeg -i "$f" -vf "crop=in_w:in_w*5/4" "META/$(basename $f)"
+              cp "$f" "TIKTOK/$(basename $f)"
+            elif [[ $f == *.mp4 ]]; then
+              # Video: Resize for Meta, keep TikTok as is
+              ffmpeg -i "$f" -vf "scale=-2:1080,crop=864:1080" "META/$(basename $f)"
+              cp "$f" "TIKTOK/$(basename $f)"
+            fi
+          done
+
+      - name: Save posted files log
+        run: |
+          echo "$(date) - Processed $(ls META | wc -l) files" >> posted_log.txt
+          git config --global user.name "AutoBot"
+          git config --global user.email "autobot@example.com"
+          git add posted_log.txt
+          git commit -m "Updated posted log" || echo "No changes"
+          git push
