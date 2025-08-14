@@ -1,0 +1,37 @@
+name: Auto Post to Meta & TikTok
+
+on:
+  schedule:
+    - cron: "0 9 * * *" # runs every day at 9 AM UTC (adjust later for best reach)
+  workflow_dispatch:
+
+jobs:
+  autopost:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.x"
+
+    - name: Install dependencies
+      run: pip install --upgrade pip google-api-python-client google-auth-httplib2 google-auth-oauthlib
+
+    - name: Run autopost script
+      env:
+        GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+        TIKTOK_ACCESS_TOKEN: ${{ secrets.TIKTOK_ACCESS_TOKEN }}
+      run: python autopost.py
+
+    - name: Commit updated log
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git add posted_files.txt
+        git commit -m "Update posted files log" || echo "No changes to commit"
+        git push
